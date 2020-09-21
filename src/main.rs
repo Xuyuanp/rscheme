@@ -41,12 +41,20 @@ struct EnvCtx {
 
 type IFunc = fn(&mut EnvCtx, &Vec<LispVal>) -> EvalResult;
 
-fn add(_ctx: &mut EnvCtx, args: &Vec<LispVal>) -> EvalResult {
+fn add(ctx: &mut EnvCtx, args: &Vec<LispVal>) -> EvalResult {
     match args.as_slice() {
         [] => Ok(LispVal::Number(0)),
         [n @ LispVal::Number(_)] => Ok(n.clone()),
         [s @ LispVal::String(_)] => Ok(s.clone()),
-        [_v, _rest @ ..] => Err(EvalError::NotImplemented),
+        [v, rest @ ..] => {
+            let x = eval(ctx, v)?;
+            let y = add(ctx, &rest.to_vec())?;
+            match (x, y) {
+                (LispVal::Number(x), LispVal::Number(y)) => Ok(LispVal::Number(x + y)),
+                // (LispVal::String(x), LispVal::String(y)) => Ok(LispVal::String(&[x, y].concat())),
+                _ => Err(EvalError::NotImplemented),
+            }
+        }
     }
 }
 
@@ -102,24 +110,13 @@ fn eval(ctx: &mut EnvCtx, val: &LispVal) -> EvalResult {
 
 fn main() {
     use LispVal as lv;
-    // let vals = lv::List(vec![
-    //     lv::Atom("fuck"),
-    //     lv::Number(10),
-    //     lv::Bool(true),
-    //     lv::Bool(false),
-    //     lv::String("foo"),
-    //     lv::Nil,
-    //     lv::List(vec![lv::Atom("bar")]),
-    // ]);
-    // println!("{}", vals);
 
     let mut ctx = EnvCtx {
         env: ValCtx::new(),
         fenv: FnCtx::new(),
     };
     ctx.fenv.insert("+", add);
-    println!("{}", eval(&mut ctx, &lv::String("fuck")).unwrap());
-    println!("{}", eval(&mut ctx, &lv::Number(2333)).unwrap());
+
     println!(
         "{}",
         eval(
@@ -130,6 +127,16 @@ fn main() {
     );
     println!(
         "{}",
-        eval(&mut ctx, &lv::List(vec![lv::Atom("+"), lv::Number(10)])).unwrap()
+        eval(
+            &mut ctx,
+            &lv::List(vec![
+                lv::Atom("+"),
+                lv::Number(10),
+                lv::Number(20),
+                lv::Number(30),
+                lv::List(vec![lv::Atom("+"), lv::Number(10), lv::Number(20),])
+            ])
+        )
+        .unwrap()
     );
 }
