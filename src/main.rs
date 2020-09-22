@@ -1,20 +1,38 @@
 use std::collections::HashMap;
 use std::fmt;
 
-#[derive(Debug)]
 enum EvalError {
     NotImplemented,
+    UnboundVar(&'static str),
+    NumArgs(u32, u32),
+    TypeMismatch(&'static str, &'static str),
+    NotFunction(&'static str),
 }
 
 impl fmt::Display for EvalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             EvalError::NotImplemented => write!(f, "{}", "NotImplemented"),
+            EvalError::UnboundVar(var) => write!(f, "Error UnboundVar: {}", var),
+            EvalError::NumArgs(want, got) => {
+                write!(f, "Error Number args, want: {}, but got: {}", want, got)
+            }
+            EvalError::TypeMismatch(want, got) => {
+                write!(f, "Error Type Mismatch, want: {}, got: {}", want, got)
+            }
+            EvalError::NotFunction(name) => write!(f, "Error Not Function: {}", name),
         }
     }
 }
 
 type EvalResult = Result<LispVal, EvalError>;
+
+fn print_result(res: &EvalResult) {
+    match res {
+        Ok(val) => println!("{}", val),
+        Err(err) => eprintln!("{}", err),
+    }
+}
 
 type ValCtx = HashMap<&'static str, LispVal>;
 type FnCtx = HashMap<&'static str, IFunc>;
@@ -27,7 +45,7 @@ impl ApplyTrait for EnvCtx {
     fn apply(&mut self, name: &'static str, args: &Vec<LispVal>) -> EvalResult {
         match self.fenv.get(name) {
             Some(ifunc) => ifunc(self, args),
-            None => Err(EvalError::NotImplemented),
+            None => Err(EvalError::NotFunction(name)),
         }
     }
 }
@@ -52,7 +70,7 @@ fn add(ctx: &mut EnvCtx, args: &Vec<LispVal>) -> EvalResult {
             match (x, y) {
                 (LispVal::Number(x), LispVal::Number(y)) => Ok(LispVal::Number(x + y)),
                 // (LispVal::String(x), LispVal::String(y)) => Ok(LispVal::String(&[x, y].concat())),
-                _ => Err(EvalError::NotImplemented),
+                _ => Err(EvalError::TypeMismatch("number", "other")),
             }
         }
     }
@@ -96,15 +114,19 @@ impl fmt::Display for LispVal {
 
 fn eval(ctx: &mut EnvCtx, val: &LispVal) -> EvalResult {
     match val {
-        LispVal::List(lst) => match lst.as_slice() {
-            [LispVal::Atom("quota"), val] => Ok(val.clone()),
-            [LispVal::Atom(fn_name), args @ ..] => ctx.apply(fn_name, &args.to_vec()),
-            _ => Err(EvalError::NotImplemented),
-        },
+        LispVal::List(lst) => eval_list(ctx, lst),
         LispVal::Atom(_) => Err(EvalError::NotImplemented),
         LispVal::Func(_) => Err(EvalError::NotImplemented),
         LispVal::Lambda(_, _) => Err(EvalError::NotImplemented),
         _ => Ok(val.clone()),
+    }
+}
+
+fn eval_list(ctx: &mut EnvCtx, list: &[LispVal]) -> EvalResult {
+    match list {
+        [LispVal::Atom("quota"), val] => Ok(val.clone()),
+        [LispVal::Atom(fn_name), args @ ..] => ctx.apply(fn_name, &args.to_vec()),
+        _ => Err(EvalError::NotImplemented),
     }
 }
 
@@ -117,26 +139,22 @@ fn main() {
     };
     ctx.fenv.insert("+", add);
 
-    println!(
-        "{}",
-        eval(
-            &mut ctx,
-            &lv::List(vec![lv::Atom("quota"), lv::Number(42),])
-        )
-        .unwrap()
-    );
-    println!(
-        "{}",
-        eval(
-            &mut ctx,
-            &lv::List(vec![
-                lv::Atom("+"),
-                lv::Number(10),
-                lv::Number(20),
-                lv::Number(30),
-                lv::List(vec![lv::Atom("+"), lv::Number(10), lv::Number(20),])
-            ])
-        )
-        .unwrap()
-    );
+    print_result(&eval(
+        &mut ctx,
+        &lv::List(vec![lv::Atom("quota"), lv::Number(42)]),
+    ));
+    print_result(&eval(
+        &mut ctx,
+        &lv::List(vec![
+            lv::Atom("+"),
+            lv::Number(10),
+            lv::Number(20),
+            lv::Number(30),
+            lv::List(vec![lv::Atom("+"), lv::Number(10), lv::Number(20)]),
+        ]),
+    ));
+    print_result(&eval(
+        &mut ctx,
+        &lv::List(vec![lv::Atom("-"), lv::Number(1)]),
+    ));
 }
