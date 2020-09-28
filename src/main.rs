@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
+#[allow(dead_code)]
 enum EvalError {
     NotImplemented,
     UnboundVar(&'static str),
@@ -63,7 +64,6 @@ fn add(ctx: &mut EnvCtx, args: &Vec<LispVal>) -> EvalResult {
     match args.as_slice() {
         [] => Ok(LispVal::Number(0)),
         [n @ LispVal::Number(_)] => Ok(n.clone()),
-        [s @ LispVal::String(_)] => Ok(s.clone()),
         [v, rest @ ..] => {
             let x = eval(ctx, v)?;
             let y = add(ctx, &rest.to_vec())?;
@@ -125,6 +125,20 @@ fn eval(ctx: &mut EnvCtx, val: &LispVal) -> EvalResult {
 fn eval_list(ctx: &mut EnvCtx, list: &[LispVal]) -> EvalResult {
     match list {
         [LispVal::Atom("quota"), val] => Ok(val.clone()),
+        [LispVal::Atom("define"), LispVal::Atom(var), expr] => {
+            let eval_val = eval(ctx, expr)?;
+            ctx.env.insert(var, eval_val);
+            Ok(LispVal::Atom(var))
+        }
+        [LispVal::Atom("if"), pred, true_expr, false_expr] => match eval(ctx, pred)? {
+            LispVal::Bool(true) => eval(ctx, true_expr),
+            LispVal::Bool(false) => eval(ctx, false_expr),
+            _ => Err(EvalError::TypeMismatch("bool", "other")),
+        },
+        [LispVal::Atom("lambda"), LispVal::List(_args), _expr] => {
+            // TODO: define lambda
+            Err(EvalError::NotImplemented)
+        }
         [LispVal::Atom(fn_name), args @ ..] => ctx.apply(fn_name, &args.to_vec()),
         _ => Err(EvalError::NotImplemented),
     }
@@ -153,8 +167,25 @@ fn main() {
             lv::List(vec![lv::Atom("+"), lv::Number(10), lv::Number(20)]),
         ]),
     ));
+    print_result(&eval(&mut ctx, &lv::List(vec![lv::Atom("+")])));
     print_result(&eval(
         &mut ctx,
         &lv::List(vec![lv::Atom("-"), lv::Number(1)]),
+    ));
+    print_result(&eval(
+        &mut ctx,
+        &lv::List(vec![lv::Atom("define"), lv::Atom("foo"), lv::Number(42)]),
+    ));
+
+    println!("{}", ctx.env.get("foo").unwrap());
+
+    print_result(&eval(
+        &mut ctx,
+        &lv::List(vec![
+            lv::Atom("if"),
+            lv::Bool(false),
+            lv::Number(42),
+            lv::Number(23),
+        ]),
     ));
 }
