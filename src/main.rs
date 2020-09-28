@@ -139,6 +139,11 @@ fn eval_list(ctx: &mut EnvCtx, list: &[LispVal]) -> EvalResult {
             // TODO: define lambda
             Err(EvalError::NotImplemented)
         }
+        [LispVal::Func(f), args @ ..] => f(ctx, &args.to_vec()),
+        [LispVal::List(lst), args @ ..] => match eval_list(ctx, lst)? {
+            LispVal::Func(f) => f(ctx, &args.to_vec()),
+            _ => Err(EvalError::TypeMismatch("function", "")),
+        },
         [LispVal::Atom(fn_name), args @ ..] => ctx.apply(fn_name, &args.to_vec()),
         _ => Err(EvalError::NotImplemented),
     }
