@@ -5,7 +5,7 @@ use std::fmt;
 enum EvalError {
     NotImplemented,
     UnboundVar(&'static str),
-    NumArgs(u32, u32),
+    NumArgs(usize, usize),
     TypeMismatch(&'static str, &'static str),
     NotFunction(&'static str),
 }
@@ -70,6 +70,22 @@ fn add(ctx: &mut EnvCtx, args: &Vec<LispVal>) -> EvalResult {
             match (x, y) {
                 (LispVal::Number(x), LispVal::Number(y)) => Ok(LispVal::Number(x + y)),
                 // (LispVal::String(x), LispVal::String(y)) => Ok(LispVal::String(&[x, y].concat())),
+                _ => Err(EvalError::TypeMismatch("number", "other")),
+            }
+        }
+    }
+}
+
+fn sub(ctx: &mut EnvCtx, args: &Vec<LispVal>) -> EvalResult {
+    match args.as_slice() {
+        [] => Ok(LispVal::Number(0)),
+        [LispVal::Number(n)] => Ok(LispVal::Number(-n)),
+        [LispVal::Number(x), LispVal::Number(y)] => Ok(LispVal::Number(x - y)),
+        [v, rest @ ..] => {
+            let x = eval(ctx, v)?;
+            let y = add(ctx, &rest.to_vec())?;
+            match (x, y) {
+                (LispVal::Number(x), LispVal::Number(y)) => Ok(LispVal::Number(x - y)),
                 _ => Err(EvalError::TypeMismatch("number", "other")),
             }
         }
@@ -157,6 +173,7 @@ fn main() {
         fenv: FnCtx::new(),
     };
     ctx.fenv.insert("+", add);
+    ctx.fenv.insert("-", sub);
 
     print_result(&eval(
         &mut ctx,
@@ -176,6 +193,19 @@ fn main() {
     print_result(&eval(
         &mut ctx,
         &lv::List(vec![lv::Atom("-"), lv::Number(1)]),
+    ));
+    print_result(&eval(
+        &mut ctx,
+        &lv::List(vec![lv::Atom("-"), lv::Number(1), lv::Number(2)]),
+    ));
+    print_result(&eval(
+        &mut ctx,
+        &lv::List(vec![
+            lv::Atom("-"),
+            lv::Number(1),
+            lv::Number(2),
+            lv::Number(3),
+        ]),
     ));
     print_result(&eval(
         &mut ctx,
